@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="대한민국 공휴일과 개인 휴일, 약의 포장 단위를 반영하는 집·회사 약 배분 플래너">
+  <title>MediPath · 나의 약 배분 플래너</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%232e4ad4'/%3E%3Cpath d='M12 20h16M20 12v16' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="holidays.js"></script><script defer src="core.js"></script><script defer src="app.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">본문으로 이동</a>
+<header class="topbar"><div class="nav-inner">
+  <a class="brand" href="#main"><span class="brand-mark" aria-hidden="true">+</span>MediPath <span class="brand-ko">약 배분 플래너</span></a>
+  <nav aria-label="주 메뉴"><a class="active" href="#plan">배분 계획</a><a href="#calendar">복용 캘린더</a><a href="#transfers">이동 일정</a></nav>
+  <button id="theme" class="icon-btn" aria-label="어두운 테마로 변경">◐</button>
+</div></header>
+<main id="main">
+  <div class="page-heading"><div><p class="eyebrow">MY MEDICATION PLAN</p><h1>약은 나누고, 일상은 가볍게.</h1><p class="muted">휴일에는 집에서, 업무일에는 회사에서. 필요한 만큼 미리 준비하세요.</p></div><button id="holiday-open" class="btn">＋ 나의 휴일</button></div>
+  <section id="plan" aria-labelledby="setup-title" class="panel setup">
+    <div class="section-top"><h2 id="setup-title"><span class="step">01</span> 처방 정보</h2><span id="sample-label" class="badge">예시 · 내 처방에 맞게 수정</span></div>
+    <form id="prescription" class="setup-grid">
+      <label>병원 방문일<input id="visit" type="date" min="2026-01-01" max="2027-12-31" required></label>
+      <label>처방 기간<span class="input-suffix"><input id="days" type="number" min="1" max="365" required><span>일</span></span></label>
+      <fieldset><legend>방문일의 약은 언제 먹나요?</legend><div class="segmented"><label><input type="radio" name="timing" value="before"><span>먹고 방문 · 다음 날 시작</span></label><label><input type="radio" name="timing" value="after"><span>다녀와서 · 당일 시작</span></label></div></fieldset>
+      <button class="btn primary" type="submit">계획 계산 <span aria-hidden="true">↗</span></button>
+    </form>
+    <div class="setup-foot"><span id="period-note"></span><label class="save-label"><input type="checkbox" id="save-local"> 이 기기에 계획 저장</label></div>
+  </section>
+  <div id="error" class="notice error" role="alert" hidden></div>
+  <div id="results">
+    <section id="summary" class="summary-grid" aria-label="계획 요약"></section>
+    <section aria-labelledby="meds-title" class="medications">
+      <div class="section-top"><div><h2 id="meds-title"><span class="step">02</span> 약별 배분</h2><p class="muted small">필요량과 포장 단위를 함께 보고, 처음 둘 수량을 정하세요.</p></div><div class="legend"><span class="home-key">집</span><span class="office-key">회사</span></div></div>
+      <div id="meds" class="med-grid"></div>
+    </section>
+    <div id="shortages" aria-live="polite"></div>
+    <div class="lower-grid">
+      <section id="calendar" class="panel" aria-labelledby="calendar-title">
+        <div class="section-top"><h2 id="calendar-title">복용 캘린더</h2><span class="small muted">날짜를 눌러 잔량 확인</span></div>
+        <div class="month-heading"><h3 id="month-title"></h3><div><button class="icon-btn" id="prev-month" aria-label="이전 달">‹</button><button class="btn compact" id="start-month">시작월</button><button class="icon-btn" id="next-month" aria-label="다음 달">›</button></div></div>
+        <div class="weekdays" aria-hidden="true"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+        <div id="calendar-grid" class="calendar-grid"></div>
+        <div class="calendar-footer"><span class="home-key">집에서 복용</span><span class="office-key">회사에서 복용</span><span>↔ 약 이동</span></div>
+        <div id="day-detail" class="day-detail" aria-live="polite"></div>
+      </section>
+      <section id="transfers" class="panel transfers" aria-labelledby="transfer-title">
+        <div class="section-top"><h2 id="transfer-title">챙겨야 할 날 <span id="event-count" class="count"></span></h2><button id="export" class="text-btn">CSV 저장 ↓</button></div>
+        <p class="muted small">출근 전에는 회사로, 퇴근할 때는 집으로.</p>
+        <div id="events" class="event-list"></div>
+        <div class="transfer-note">처음 배분한 약이 각 장소에 준비되어 있다고 가정합니다. 이동 일정은 표시된 날에 실행해 주세요.</div>
+      </section>
+    </div>
+    <details class="panel rules"><summary>계산 기준과 공휴일 데이터</summary><div class="rules-body">
+      <p>토·일요일, 대한민국 공휴일, 추가한 휴일에는 집에서 복용합니다. 나머지는 회사에서 복용합니다. 방문 전에 이미 먹었다면 새 처방은 다음 날부터 시작합니다.</p>
+      <p><b>나눠 담기</b>는 알·봉 단위 배분, <b>포장 유지</b>는 10알 팩·90봉 통·30알 통 단위 배분입니다. 포장을 유지하면 개봉 후 남은 팩·통도 통째로 이동합니다. 이동은 회사에서 복용하기 전과 연속 휴일 직전 퇴근 시점에 계산합니다. 이동 횟수의 전역 최솟값을 보장하는 방식은 아닙니다.</p>
+      <p>기존 잔약 없이 이번에 받은 수량으로 계산합니다. 잔약까지 포함하려면 받은 수량에 합산해 주세요. 1일분이 부족한 날은 일부 복용으로 계산하지 않고 부족으로 표시합니다. 복용량은 실제 처방에 맞게 입력하세요.</p>
+      <p><b>지원 기간: 2026.01.01 ~ 2027.12.31</b> · 공휴일 확인일 2026.09.23. 노동절·제헌절 개정을 반영했습니다. 이후 지정되는 임시공휴일은 ‘나의 휴일’에 추가해 주세요. 지원 범위 밖은 계산을 중단합니다.</p>
+      <div id="sources"></div><p class="muted small">‘이 기기에 계획 저장’을 켜면 현재 브라우저에만 저장됩니다. 계정 간 동기화는 없으며, 브라우저 데이터를 삭제하면 함께 지워집니다.</p>
+    </div></details>
+  </div>
+  <footer><span class="brand-small">MediPath</span><span>매일의 복용을 위한, 작은 준비.</span><span id="save-status">기기에 저장하지 않음</span></footer>
+</main>
+<dialog id="holiday-dialog"><div class="dialog-top"><div><p class="eyebrow">MY DAYS OFF</p><h2>나의 휴일</h2></div><button class="icon-btn" data-close="holiday-dialog" aria-label="닫기">×</button></div><p class="muted">연차, 회사 휴무일, 재택일을 추가하면 집에서 먹는 날로 계산해요.</p><form id="holiday-form"><label>휴일 이름<input id="holiday-name" maxlength="60" placeholder="예: 추석 연차" required></label><div class="form-row"><label>시작일<input id="holiday-start" type="date" required></label><label>종료일<input id="holiday-end" type="date" required></label></div><button class="btn primary" type="submit">휴일 추가</button><p id="holiday-error" class="field-error" role="alert"></p></form><div id="holiday-list"></div><div class="dialog-bottom"><button class="btn" data-close="holiday-dialog">닫기</button></div></dialog>
+<dialog id="med-dialog"><div class="dialog-top"><h2>약과 포장 설정</h2><button class="icon-btn" data-close="med-dialog" aria-label="닫기">×</button></div><form id="med-form"><label>약 이름<input id="med-name" maxlength="40" required></label><div class="form-row"><label>하루 복용량<input id="med-dose" type="number" min="1" max="20" required></label><label>수량 단위<select id="med-unit"><option>알</option><option>봉</option></select></label></div><div class="form-row"><label>팩·통당 수량<input id="med-pack" type="number" min="1" max="1000" required></label><label>한 상자에 든 팩·통 수<input id="med-box" type="number" min="1" max="100" required></label></div><p class="small muted">예: A는 10알 × 3팩, B는 90봉 × 1통, C는 30알 × 1통입니다. 포장 유지 시 팩·통을 최소 이동 단위로 사용합니다.</p><p id="med-error" class="field-error" role="alert"></p><button class="btn primary" type="submit">설정 적용</button></form></dialog>
+<div id="toast" role="status" hidden></div>
+</body></html>
