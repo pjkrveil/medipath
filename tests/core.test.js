@@ -77,3 +77,29 @@ test('daily inventory conservation and valid commute dates across package sizes'
     }
   }
 });
+test('selected-day snapshots distinguish starting, pre-dose and closing stock',()=>{
+  const p=C.plan(state()),r=p.results[1].rows[0];
+  assert.deepEqual(r.opening,{home:90,office:0});
+  assert.deepEqual(r.beforeDose,{home:0,office:90});
+  assert.deepEqual(r.afterDose,{home:0,office:89});
+  assert.equal(r.home,89);assert.equal(r.office,0);
+});
+test('date-based reallocation preserves earlier days and total stock',()=>{
+  const s=state();s.meds.forEach(m=>m.policy='split');const before=C.plan(s);
+  s.allocation={date:'2026-09-28',home:[10,10,20]};const after=C.plan(s);
+  for(let i=0;i<3;i++){
+    const old=before.results[i],m=after.results[i],j=m.rows.findIndex(r=>r.date===s.allocation.date);
+    assert.deepEqual(m.rows.slice(0,j),old.rows.slice(0,j));
+    assert.equal(m.rows[j].opening.home,s.allocation.home[i]);
+    let consumed=0;for(const r of m.rows){consumed+=r.consumed;assert.equal(r.home+r.office+consumed,m.total);assert.equal(r.missing,0)}
+  }
+  assert.ok(after.events.some(e=>e.phase==='rebalance'));
+});
+test('opened package remains intact during reallocation',()=>{
+  const s=state();s.allocation={date:'2026-09-28',home:[0,85,0]};
+  const p=C.plan(s);assert.equal(p.results[1].rows[5].opening.home,85);
+  s.allocation.home[1]=30;assert.throws(()=>C.plan(s),/팩·통/);
+  s.allocation.home[1]=100;assert.throws(()=>C.plan(s),/총량/);
+  assert.equal(C.recommendHome([10,10,4],12,'pack'),14);
+  assert.equal(C.recommendHome([10,10,4],12,'split'),12);
+});

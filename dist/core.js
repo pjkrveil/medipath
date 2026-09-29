@@ -30,9 +30,35 @@
     const start=state.timing==='before'?add(state.visit,1):state.visit;
     const end=add(start,state.days-1);
     if(start<H.min||end>H.max)throw Error('공휴일 데이터는 2026~2027년을 지원합니다. 계획 전체 기간을 이 범위 안으로 설정해 주세요.');
+    if(state.allocation){
+      const a=state.allocation;
+      if(!valid(a.date)||a.date<start||a.date>end||!Array.isArray(a.home)||a.home.length!==3||!a.home.every(n=>integer(n,0,10000)))throw Error('날짜별 재배분 정보를 확인해 주세요.');
+    }
     return {start,end};
   }
   function chunks(n,size){const a=[];while(n>0){a.push(Math.min(n,size));n-=size}return a}
+  // Preserve individual opened packages when moving stock on a selected date.
+  function partition(packs,target){
+    if(target===0)return {home:[],office:[...packs]};
+    if(target===sum(packs))return {home:[...packs],office:[]};
+    const reachable=new Map([[0,null]]);
+    for(let i=0;i<packs.length;i++){
+      for(const [n,path] of [...reachable]){
+        const next=n+packs[i];
+        if(next<=target&&!reachable.has(next))reachable.set(next,{index:i,previous:path});
+      }
+      if(reachable.has(target))break;
+    }
+    if(!reachable.has(target))throw Error('열린 팩·통의 잔량을 유지할 수 없는 수량입니다. 추천 배분을 사용하거나 알·봉 단위로 나누기를 선택해 주세요.');
+    const chosen=new Set();for(let p=reachable.get(target);p;p=p.previous)chosen.add(p.index);
+    return {home:packs.filter((_,i)=>chosen.has(i)),office:packs.filter((_,i)=>!chosen.has(i))};
+  }
+  function recommendHome(packs,need,policy){
+    const total=sum(packs);if(policy==='split')return Math.min(total,need);
+    const possible=new Set([0]);
+    for(const p of packs)for(const n of [...possible])possible.add(n+p);
+    return [...possible].sort((a,b)=>a-b).find(n=>n>=need)??total;
+  }
   function plan(state){
     const {start,end}=validate(state);
     const days=Array.from({length:state.days},(_,i)=>dayInfo(add(start,i),state.holidays));
@@ -41,7 +67,7 @@
       const needHome=homeDays*m.dose,needOffice=(state.days-homeDays)*m.dose;
       // Package-preserving initial split. The last incomplete package stays at the office.
       const initialHome=m.home??Math.min(m.total,m.policy==='pack'?Math.ceil(needHome/m.pack)*m.pack:needHome);
-      const inventory={home:chunks(initialHome,m.policy==='pack'?m.pack:1),office:chunks(m.total-initialHome,m.policy==='pack'?m.pack:1)};
+      let inventory={home:chunks(initialHome,m.policy==='pack'?m.pack:1),office:chunks(m.total-initialHome,m.policy==='pack'?m.pack:1)};
       const events=[],rows=[];
       function move(from,to,needed,s,phase){
         if(needed<=0)return;
@@ -56,24 +82,35 @@
         return n-left;
       }
       function nextHomeNeed(i){let n=0;for(let j=i;j<days.length&&days[j].location==='home';j++)n+=m.dose;return n}
-      if(days[0].location==='home')move('office','home',nextHomeNeed(0)-sum(inventory.home),start,'setup');
       days.forEach((d,i)=>{
+        const rawOpening={home:sum(inventory.home),office:sum(inventory.office),packs:m.policy==='split'?[sum(inventory.home)+sum(inventory.office)]:[...inventory.home,...inventory.office]};
+        if(state.allocation?.date===d.date){
+          const target=state.allocation.home[index],total=sum(rawOpening.packs);
+          if(target>total)throw Error(m.name+': 선택일의 남은 총량을 초과했습니다.');
+          const priorHome=sum(inventory.home);
+          inventory=m.policy==='split'?{home:chunks(target,1),office:chunks(total-target,1)}:partition(rawOpening.packs,target);
+          const delta=target-priorHome;
+          if(delta)events.push({date:d.date,phase:'rebalance',from:delta>0?'office':'home',to:delta>0?'home':'office',quantity:Math.abs(delta),packs:[],med:index,name:m.name,unit:m.unit,policy:m.policy});
+        }
+        const opening={home:sum(inventory.home),office:sum(inventory.office)};
+        if((i===0||state.allocation?.date===d.date)&&d.location==='home')move('office','home',nextHomeNeed(i)-sum(inventory.home),d.date,'setup');
         if(d.location==='office')move('home','office',m.dose-sum(inventory.office),d.date,'before');
+        const beforeDose={home:sum(inventory.home),office:sum(inventory.office)};
         const available=sum(inventory[d.location]);
         // Never schedule a partial daily dose. Insufficient units remain in inventory.
         const consumed=available>=m.dose?take(d.location,m.dose):0;
         const afterDose={home:sum(inventory.home),office:sum(inventory.office)};
         if(d.location==='office')move('office','home',nextHomeNeed(i+1)-sum(inventory.home),d.date,'after');
-        rows.push({...d,consumed,missing:m.dose-consumed,afterDose,home:sum(inventory.home),office:sum(inventory.office)});
+        rows.push({...d,consumed,missing:m.dose-consumed,rawOpening,opening,beforeDose,afterDose,home:sum(inventory.home),office:sum(inventory.office)});
       });
       const shortage=m.dose*state.days>m.total?m.dose*state.days-m.total:0;
       return {...m,index,needHome,needOffice,initialHome,initialOffice:m.total-initialHome,events,rows,shortage,
         firstShortage:rows.find(r=>r.missing)?.date??null,last:{home:sum(inventory.home),office:sum(inventory.office)}};
     });
-    const order={setup:0,before:1,after:2};
+    const order={rebalance:-1,setup:0,before:1,after:2};
     const events=results.flatMap(r=>r.events).sort((a,b)=>a.date.localeCompare(b.date)||order[a.phase]-order[b.phase]||a.med-b.med);
     return {start,end,days,homeDays,officeDays:state.days-homeDays,results,events};
   }
-  const api={date,iso,add,valid,dayInfo,validate,plan};
+  const api={date,iso,add,valid,dayInfo,validate,plan,partition,recommendHome};
   if(typeof module!=='undefined')module.exports=api;else root.MediCore=api;
 })(typeof window!=='undefined'?window:globalThis);

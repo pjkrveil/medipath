@@ -1,4 +1,4 @@
-/* No external runtime dependencies. Also works by opening index.html locally. */
+/* Static app with optional email authentication and account settings. */
 (()=>{
   'use strict';
   const C=window.MediCore,H=window.KRHolidays,$=s=>document.querySelector(s);
@@ -7,7 +7,7 @@
   const fullDate=s=>s.replaceAll('-','.');
   const weekday=s=>'일월화수목금토'[C.date(s).getUTCDay()];
   const loc=x=>x==='home'?'집':'회사';
-  const phase=x=>({setup:'시작 전 준비',before:'출근 시 · 복용 전',after:'퇴근 시 · 복용 후'}[x]);
+  const phase=x=>({rebalance:'직접 재배분 · 복용 전',setup:'복용 전 미리 준비',before:'출근 시 · 복용 전',after:'퇴근 시 · 복용 후'}[x]);
   const key='medipath.plan.v1';
   const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const defaultDate=today>=H.min&&today<='2027-10-01'?today:'2026-09-23';
@@ -16,11 +16,23 @@
     {name:'약 B',dose:1,unit:'봉',pack:90,box:1,total:90,autoTotal:true,policy:'pack',home:null},
     {name:'약 C',dose:2,unit:'알',pack:30,box:1,total:180,autoTotal:true,policy:'pack',home:null}
   ]};
-  let saving=false,plan,month,selected,editingMed=0,toastTimer,dirty=false;
-  try{const saved=localStorage.getItem(key);if(saved){const x=JSON.parse(saved);C.validate(x);state=x;saving=true;$('#sample-label').textContent='저장된 내 계획'}}catch{ $('#save-status').textContent='저장된 계획을 불러오지 못했습니다'; }
+  let saving=false,plan,month,selected,editingMed=0,toastTimer,dirty=false,account=null,balanceMoment='closing',allocationBase=null;
+  function snapshot(){return {version:2,plan:structuredClone(state),preferences:{theme:document.documentElement.dataset.theme||'light',selectedDate:selected,balanceMoment}}}
+  function validateSettings(x){
+    if(!x||x.version!==2||!x.plan||!x.preferences)throw Error('저장된 설정 형식을 확인해 주세요.');
+    C.plan(x.plan);
+    if(!['light','dark'].includes(x.preferences.theme)||!['opening','beforeDose','closing'].includes(x.preferences.balanceMoment)||!C.valid(x.preferences.selectedDate))throw Error('저장된 화면 설정을 확인해 주세요.');
+  }
+  function restoreSettings(x){
+    validateSettings(x);state=structuredClone(x.plan);selected=x.preferences.selectedDate;balanceMoment=x.preferences.balanceMoment;month=selected.slice(0,7);dirty=false;
+    document.documentElement.dataset.theme=x.preferences.theme;$('#theme').setAttribute('aria-label',x.preferences.theme==='dark'?'밝은 테마로 변경':'어두운 테마로 변경');
+    $('#balance-moment').value=balanceMoment;syncForm();compute();$('#sample-label').textContent=account?.isActive()?'내 계정의 계획':'내 기기의 계획';
+  }
+  try{const saved=localStorage.getItem(key);if(saved){const x=JSON.parse(saved);if(x.version===2&&x.plan){validateSettings(x);state=x.plan;selected=x.preferences.selectedDate;month=selected.slice(0,7);balanceMoment=x.preferences.balanceMoment;document.documentElement.dataset.theme=x.preferences.theme}else{C.validate(x);state=x}saving=true;$('#sample-label').textContent='저장된 내 계획'}}catch{ $('#save-status').textContent='저장된 계획을 불러오지 못했습니다'; }
   function persist(){
+    if(account?.isActive()){account.save(snapshot());return}
     if(!saving){$('#save-status').textContent='기기에 저장하지 않음';return}
-    try{localStorage.setItem(key,JSON.stringify(state));$('#save-status').textContent='이 기기에 저장됨'}catch{$('#save-status').textContent='저장 실패 · 브라우저 저장 공간 확인';toast('계산은 완료했지만 기기에 저장하지 못했습니다.')}
+    try{localStorage.setItem(key,JSON.stringify(snapshot()));$('#save-status').textContent='이 기기에 저장됨'}catch{$('#save-status').textContent='저장 실패 · 브라우저 저장 공간 확인';toast('계산은 완료했지만 기기에 저장하지 못했습니다.')}
   }
   function toast(message){clearTimeout(toastTimer);$('#toast').textContent=message;$('#toast').hidden=false;toastTimer=setTimeout(()=>$('#toast').hidden=true,3500)}
   function syncForm(){
@@ -33,6 +45,7 @@
     return [n?`${n}${noun}`:'',r?`${r}${m.unit} ${m.policy==='pack'?'부분 포장':''}`:''].filter(Boolean).join(' + ');
   }
   function movePackaging(e,m){
+    if(e.phase==='rebalance')return '선택일 복용 전에 직접 옮겨 둘 수량';
     if(m.policy==='split')return `${e.quantity}${m.unit} 나눠 이동`;
     const noun=m.box>1?'팩':'통',full=e.packs.filter(p=>p===m.pack).length,parts=e.packs.filter(p=>p<m.pack);
     return [full?`${m.pack}${m.unit} × ${full}${noun}`:'',...parts.map(p=>`남은 ${p}${m.unit} ${noun}째`)].filter(Boolean).join(' + ');
@@ -85,7 +98,17 @@
   }
   function renderDay(){
     const info=C.dayInfo(selected,state.holidays),index=plan.days.findIndex(d=>d.date===selected);
-    $('#day-detail').innerHTML=`<h3>${dateLabel(selected)} (${weekday(selected)}) · ${escape(info.reason)}</h3>${index<0?'<p class="muted small">현재 처방 계획에 포함되지 않은 날입니다.</p>':`<p class="detail-caption">${loc(info.location)}에서 복용 · 당일 복용과 이동을 마친 뒤의 예상 잔량</p>${plan.results.map(m=>{const r=m.rows[index];return `<div class="detail-row"><span>${escape(m.name)} ${r.missing?'· 복용분 부족':`· ${r.consumed}${m.unit} 복용`}</span><span class="home-text">집 ${r.home}${m.unit}</span><span class="office-text">회사 ${r.office}${m.unit}</span></div>`}).join('')}${plan.events.filter(e=>e.date===selected).map(e=>`<p class="small muted">↔ ${phase(e.phase)} · ${escape(e.name)} ${e.quantity}${e.unit} ${loc(e.from)} → ${loc(e.to)}</p>`).join('')}`}`;
+    $('#allocation-open').disabled=index<0;
+    $('#allocation-status').hidden=!state.allocation;
+    if(state.allocation)$('#allocation-note').textContent=`${fullDate(state.allocation.date)} 복용 전 재배분 기준 적용 중`;
+    if(index<0){$('#day-detail').innerHTML=`<h3>${dateLabel(selected)} (${weekday(selected)})</h3><p class="muted small">현재 처방 계획에 포함되지 않은 날입니다.</p>`;return}
+    const timing={opening:'하루 시작 · 직접 재배분 후, 자동 이동과 복용 전',beforeDose:'복용 직전 · 복용 전 이동 완료, 아직 먹지 않은 수량',closing:'하루 종료 · 당일 복용과 모든 이동을 마친 수량'}[balanceMoment];
+    const remaining=plan.days.slice(index),homeDays=remaining.filter(d=>d.location==='home').length;
+    $('#day-detail').innerHTML=`<h3>${dateLabel(selected)} (${weekday(selected)}) · ${escape(info.reason)}</h3><p class="detail-caption">${timing}</p><div class="balance-cards">${plan.results.map(m=>{
+      const r=m.rows[index],q=balanceMoment==='closing'?r:r[balanceMoment];
+      const usedToday=balanceMoment==='closing'?r.consumed:0;
+      return `<article class="balance-card"><h4>${escape(m.name)} <small>하루 ${m.dose}${m.unit}</small></h4><div class="balance-pair"><div class="home-balance"><span>집에 남은 약</span><strong>${q.home}<small>${m.unit}</small></strong></div><div class="office-balance"><span>회사에 남은 약</span><strong>${q.office}<small>${m.unit}</small></strong></div></div><p>남은 필요량 · 집 ${Math.max(0,homeDays*m.dose-(info.location==='home'?usedToday:0))}${m.unit} / 회사 ${Math.max(0,(remaining.length-homeDays)*m.dose-(info.location==='office'?usedToday:0))}${m.unit}</p>${r.missing?'<p class="field-error">이 날짜의 1일 복용분이 부족합니다.</p>':''}</article>`;
+    }).join('')}</div><p class="detail-caption">계획된 복용과 이동을 실행했을 때의 예상 잔량입니다.</p>${plan.events.filter(e=>e.date===selected).map(e=>`<p class="small muted">↔ ${phase(e.phase)} · ${escape(e.name)} ${e.quantity}${e.unit} ${loc(e.from)} → ${loc(e.to)}</p>`).join('')}`;
   }
   function renderEvents(){
     const groups=new Map();plan.events.forEach(e=>{const key=e.date+e.phase;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(e)});
@@ -97,14 +120,17 @@
   function renderHolidays(){
     $('#holiday-list').innerHTML=state.holidays.length?[...state.holidays].map((h,i)=>`<div class="holiday-item"><div><b>${escape(h.name)}</b><small>${fullDate(h.start)}${h.start!==h.end?' — '+fullDate(h.end):''}</small></div><button class="text-btn" data-holiday-remove="${i}" aria-label="${escape(h.name)} 삭제">삭제</button></div>`).join(''):'<p class="muted small">추가한 휴일이 없습니다. 대한민국 공휴일과 주말은 자동으로 적용돼요.</p>';
   }
-  function mutation(fn){
+  function mutation(fn,{keepAllocation=false}={}){
     const previous=structuredClone(state);fn();
+    if(!keepAllocation)state.allocation=null;
     if(!compute()){const msg=$('#error').textContent;state=previous;compute();toast(msg);return false}
+    if(previous.allocation&&!keepAllocation)toast('계획이 변경되어 날짜별 재배분 기준을 초기화했습니다.');
     $('#sample-label').textContent='내 배분 계획';return true;
   }
   function applyPrescription(){
     if(!$('#prescription').reportValidity())return false;
     state.visit=$('#visit').value;state.days=Number($('#days').value);state.timing=$('input[name=timing]:checked').value;
+    state.allocation=null;
     state.meds.forEach(m=>{if(m.autoTotal){m.total=state.days*m.dose;m.home=null}});
     if(compute({resetMonth:true})){dirty=false;$('#sample-label').textContent='내 배분 계획';return true}
     return false;
@@ -136,7 +162,7 @@
   });
   $('#med-form').addEventListener('submit',e=>{
     e.preventDefault();const prev=structuredClone(state),m=state.meds[editingMed];
-    m.name=$('#med-name').value.trim();m.dose=Number($('#med-dose').value);m.unit=$('#med-unit').value;m.pack=Number($('#med-pack').value);m.box=Number($('#med-box').value);m.home=null;if(m.autoTotal)m.total=state.days*m.dose;
+    m.name=$('#med-name').value.trim();m.dose=Number($('#med-dose').value);m.unit=$('#med-unit').value;m.pack=Number($('#med-pack').value);m.box=Number($('#med-box').value);m.home=null;state.allocation=null;if(m.autoTotal)m.total=state.days*m.dose;
     try{C.validate(state);compute();$('#med-dialog').close();$('#sample-label').textContent='내 배분 계획'}catch(err){state=prev;$('#med-error').textContent=err.message}
   });
   $('#holiday-open').addEventListener('click',()=>{if(dirty&&!applyPrescription())return;renderHolidays();$('#holiday-start').value=state.visit;$('#holiday-end').value=state.visit;$('#holiday-error').textContent='';$('#holiday-dialog').showModal()});
@@ -149,14 +175,44 @@
   });
   $('#holiday-list').addEventListener('click',e=>{const b=e.target.closest('[data-holiday-remove]');if(b){mutation(()=>state.holidays.splice(+b.dataset.holidayRemove,1));renderHolidays()}});
   document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$('#'+b.dataset.close).close()));
-  $('#calendar-grid').addEventListener('click',e=>{const b=e.target.closest('[data-day]');if(b){selected=b.dataset.day;renderCalendar();$(`[data-day="${selected}"]`).focus({preventScroll:true})}});
+  $('#calendar-grid').addEventListener('click',e=>{const b=e.target.closest('[data-day]');if(b){selected=b.dataset.day;renderCalendar();persist();$(`[data-day="${selected}"]`).focus({preventScroll:true})}});
+  $('#balance-moment').value=balanceMoment;
+  $('#balance-moment').addEventListener('change',e=>{balanceMoment=e.target.value;renderDay();persist()});
+  $('#allocation-open').addEventListener('click',()=>{
+    allocationBase=C.plan({...state,allocation:null});
+    const index=allocationBase.days.findIndex(d=>d.date===selected);if(index<0)return;
+    $('#allocation-description').textContent=`${fullDate(selected)} 복용 전 남은 약을 집과 회사에 다시 배분합니다. 총 잔량은 바뀌지 않습니다.`;
+    $('#allocation-error').textContent='';
+    $('#allocation-inputs').innerHTML=allocationBase.results.map((m,i)=>{
+      const q=m.rows[index].rawOpening,total=q.home+q.office;
+      return `<fieldset class="allocation-fieldset"><legend>${escape(m.name)} · 남은 총 ${total}${m.unit}</legend><div class="form-row"><label for="rehome-${i}">집 (${m.unit})<input id="rehome-${i}" data-rehome="${i}" type="number" min="0" max="${total}" step="1" value="${q.home}" required></label><label for="reoffice-${i}">회사 (${m.unit})<input id="reoffice-${i}" data-reoffice="${i}" type="number" min="0" max="${total}" step="1" value="${q.office}" required></label></div><button class="text-btn" type="button" data-recommend="${i}">남은 필요량에 맞춰 추천</button><p class="small muted">${m.policy==='pack'?'개봉한 팩·통의 남은 수량도 통째로 유지합니다.':'알·봉 단위로 배분합니다.'}</p></fieldset>`;
+    }).join('');$('#allocation-dialog').showModal();
+  });
+  $('#allocation-inputs').addEventListener('input',e=>{
+    const i=e.target.dataset.rehome??e.target.dataset.reoffice;if(i===undefined)return;
+    const row=allocationBase.results[+i].rows.find(r=>r.date===selected),total=row.rawOpening.home+row.rawOpening.office;
+    if(e.target.value!==''&&e.target.validity.valid)$('#'+(e.target.dataset.rehome!==undefined?'reoffice-':'rehome-')+i).value=total-Number(e.target.value);
+  });
+  $('#allocation-inputs').addEventListener('click',e=>{
+    const b=e.target.closest('[data-recommend]');if(!b)return;const i=+b.dataset.recommend,m=allocationBase.results[i],row=m.rows.find(r=>r.date===selected);
+    const need=allocationBase.days.filter(d=>d.date>=selected&&d.location==='home').length*m.dose;
+    const n=C.recommendHome(row.rawOpening.packs,need,m.policy);$('#rehome-'+i).value=n;$('#reoffice-'+i).value=row.rawOpening.home+row.rawOpening.office-n;
+  });
+  $('#allocation-form').addEventListener('submit',e=>{
+    e.preventDefault();const candidate=structuredClone(state);candidate.allocation={date:selected,home:state.meds.map((_,i)=>Number($('#rehome-'+i).value))};
+    try{
+      state.meds.forEach((m,i)=>{const r=allocationBase.results[i].rows.find(r=>r.date===selected).rawOpening;if(candidate.allocation.home[i]+Number($('#reoffice-'+i).value)!==r.home+r.office)throw Error(m.name+': 집과 회사 수량의 합계를 확인해 주세요.')});
+      C.plan(candidate);mutation(()=>state=candidate,{keepAllocation:true});$('#allocation-dialog').close();toast('선택일부터 잔량과 이동 일정을 다시 계산했습니다.');
+    }catch(err){$('#allocation-error').textContent=err.message}
+  });
+  $('#allocation-clear').addEventListener('click',()=>mutation(()=>state.allocation=null,{keepAllocation:true}));
   function changeMonth(n){const d=C.date(month+'-01');d.setUTCMonth(d.getUTCMonth()+n);month=C.iso(d).slice(0,7);renderCalendar()}
   $('#prev-month').addEventListener('click',()=>changeMonth(-1));$('#next-month').addEventListener('click',()=>changeMonth(1));$('#start-month').addEventListener('click',()=>{month=plan.start.slice(0,7);selected=plan.start;renderCalendar()});
-  $('#theme').addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';$('#theme').setAttribute('aria-label',dark?'밝은 테마로 변경':'어두운 테마로 변경')});
+  $('#theme').addEventListener('click',()=>{const dark=document.documentElement.dataset.theme!=='dark';document.documentElement.dataset.theme=dark?'dark':'light';$('#theme').setAttribute('aria-label',dark?'밝은 테마로 변경':'어두운 테마로 변경');persist()});
   $('#export').addEventListener('click',()=>{
     const rows=[['구분','날짜','시점','약','출발','도착','수량','단위','설명']];
     plan.results.forEach(m=>{rows.push(['초기 배분',plan.start,'복용 전',m.name,'처방','집',m.initialHome,m.unit,packaging(m.initialHome,m)]);rows.push(['초기 배분',plan.start,'복용 전',m.name,'처방','회사',m.initialOffice,m.unit,packaging(m.initialOffice,m)])});
-    plan.events.forEach(e=>rows.push(['이동',e.date,phase(e.phase),e.name,loc(e.from),loc(e.to),e.quantity,e.unit,movePackaging(e,plan.results[e.med])]));
+    plan.events.forEach(e=>rows.push([e.phase==='rebalance'?'재배분':'이동',e.date,phase(e.phase),e.name,loc(e.from),loc(e.to),e.quantity,e.unit,movePackaging(e,plan.results[e.med])]));
     plan.results.filter(m=>m.firstShortage).forEach(m=>rows.push(['부족',m.firstShortage,'복용 전',m.name,'','',m.shortage,m.unit,'총 처방 기간 대비 부족량']));
     const cell=v=>'"'+String(v).replace(/^[=+@\-\t\r]/,"'$&").replaceAll('"','""')+'"';
     const blob=new Blob(['\ufeff'+rows.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8;'}),url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -164,4 +220,5 @@
   });
   $('#sources').innerHTML=H.sources.map(s=>`<a href="${escape(s.url)}" target="_blank" rel="noopener noreferrer">${escape(s.label)} ↗</a>`).join('');
   syncForm();compute();
+  account=window.MediAccount.mount({snapshot,validate:validateSettings,restore:restoreSettings,localStatus:persist});
 })();

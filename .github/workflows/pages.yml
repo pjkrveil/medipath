@@ -21,6 +21,13 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run vendor
+      - run: npm run configure
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
       - run: npm run check
       - run: npm test
       - uses: actions/configure-pages@v5
