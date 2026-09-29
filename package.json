@@ -1,6 +1,6 @@
 {
   "name": "medipath",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "description": "대한민국 공휴일과 포장을 반영하는 약 배분 플래너",
   "scripts": {

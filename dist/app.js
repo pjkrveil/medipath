@@ -16,7 +16,7 @@
     {name:'약 B',dose:1,unit:'봉',pack:90,box:1,total:90,autoTotal:true,policy:'pack',home:null},
     {name:'약 C',dose:2,unit:'알',pack:30,box:1,total:180,autoTotal:true,policy:'pack',home:null}
   ]};
-  let saving=false,plan,month,selected,editingMed=0,toastTimer,dirty=false,account=null,balanceMoment='closing',allocationBase=null;
+  let saving=false,plan,month,selected,editingMed=null,removingMed=null,toastTimer,dirty=false,account=null,balanceMoment='closing',allocationBase=null;
   function snapshot(){return {version:2,plan:structuredClone(state),preferences:{theme:document.documentElement.dataset.theme||'light',selectedDate:selected,balanceMoment}}}
   function validateSettings(x){
     if(!x||x.version!==2||!x.plan||!x.preferences)throw Error('저장된 설정 형식을 확인해 주세요.');
@@ -24,7 +24,7 @@
     if(!['light','dark'].includes(x.preferences.theme)||!['opening','beforeDose','closing'].includes(x.preferences.balanceMoment)||!C.valid(x.preferences.selectedDate))throw Error('저장된 화면 설정을 확인해 주세요.');
   }
   function restoreSettings(x){
-    validateSettings(x);state=structuredClone(x.plan);selected=x.preferences.selectedDate;balanceMoment=x.preferences.balanceMoment;month=selected.slice(0,7);dirty=false;
+    validateSettings(x);for(const id of ['med-dialog','remove-dialog','allocation-dialog'])if($('#'+id).open)$('#'+id).close();editingMed=null;removingMed=null;state=structuredClone(x.plan);selected=x.preferences.selectedDate;balanceMoment=x.preferences.balanceMoment;month=selected.slice(0,7);dirty=false;
     document.documentElement.dataset.theme=x.preferences.theme;$('#theme').setAttribute('aria-label',x.preferences.theme==='dark'?'밝은 테마로 변경':'어두운 테마로 변경');
     $('#balance-moment').value=balanceMoment;syncForm();compute();$('#sample-label').textContent=account?.isActive()?'내 계정의 계획':'내 기기의 계획';
   }
@@ -69,15 +69,20 @@
       <article class="summary-card"><div class="summary-label">첫 이동일 <span>↔</span></div><div class="summary-value date">${first?dateLabel(first.date):'이동 없음'}</div><p>${first?`${phase(first.phase)} · 총 ${dateGroups.size}일에 이동`:'처음 나눈 수량으로 복용 가능'}</p></article>`;
   }
   function renderMeds(){
-    $('#meds').innerHTML=plan.results.map((m,i)=>{
-      const percentage=m.total?m.initialHome/m.total*100:0;
-      return `<article class="med-card"><div class="med-header"><span class="med-letter">${'ABC'[i]}</span><div><h3>${escape(m.name)}</h3><p>하루 ${m.dose}${m.unit} · ${m.pack}${m.unit} × ${m.box}${m.box>1?'팩':'통'}</p></div><button class="text-btn" data-edit="${i}">설정</button></div>
-        <div class="quantity-row"><label for="total-${i}">받은 수량<span>${Math.floor(m.total/m.dose)}일분${m.total%m.dose?` + ${m.total%m.dose}${m.unit}`:''} · <button class="text-btn" data-total-auto="${i}">처방일수에 맞춤</button></span></label><span class="input-suffix"><input id="total-${i}" data-total="${i}" type="number" min="0" max="10000" step="1" value="${m.total}" required><span>${m.unit}</span></span></div>
-        <div class="policy-row"><label for="policy-${i}">배분 방식</label><select id="policy-${i}" data-policy="${i}"><option value="pack" ${m.policy==='pack'?'selected':''}>팩·통 유지</option><option value="split" ${m.policy==='split'?'selected':''}>알·봉 단위로 나누기</option></select></div>
-        <div class="allocation"><div class="allocation-top"><span>처음 둘 수량</span><span>${m.home===null?'자동 추천':'직접 지정'}</span></div><div class="allocation-numbers"><div><small class="home-key">집으로</small><strong>${m.initialHome}<span>${m.unit}</span></strong><p>${packaging(m.initialHome,m)}</p></div><div><small class="office-key">회사에</small><strong>${m.initialOffice}<span>${m.unit}</span></strong><p>${packaging(m.initialOffice,m)}</p></div></div><div class="split-bar" aria-hidden="true"><span style="width:${percentage}%"></span><span style="width:${100-percentage}%"></span></div><div class="need-caption"><span>집 필요 ${m.needHome}${m.unit}</span><span>회사 필요 ${m.needOffice}${m.unit}</span></div></div>
-        <div class="allocation-edit"><label for="home-${i}">집 ${m.unit}</label><input id="home-${i}" data-home="${i}" type="number" min="0" max="${m.total}" step="1" value="${m.initialHome}" required><label for="office-${i}">회사 ${m.unit}</label><input id="office-${i}" data-office="${i}" type="number" min="0" max="${m.total}" step="1" value="${m.initialOffice}" required><button class="text-btn" data-auto="${i}">자동</button></div>
-        <div class="med-bottom"><span>${m.shortage?`총 ${m.shortage}${m.unit} 부족`:`종료 후 잔량 ${m.last.home+m.last.office}${m.unit}`}</span><b>${m.events.length?`이동 ${m.events.length}회`:'추가 이동 없음'}</b></div>${m.policy==='pack'&&m.events.length>5?'<p class="packing-note">팩·통을 유지해 이동하는 계획입니다. 나눠 담을 수 있다면 배분 방식을 바꿔 비교해 보세요.</p>':''}</article>`;
-    }).join('');
+    $('#med-count').textContent=state.meds.length+'개';
+    $('#med-add').disabled=state.meds.length>=100;
+    $('#med-add').title=state.meds.length>=100?'약은 최대 100개까지 등록할 수 있습니다.':'';
+    $('#export').disabled=!state.meds.length;
+    $('#meds').innerHTML=plan.results.length?plan.results.map((m,i)=>{
+      const percentage=m.total?m.initialHome/m.total*100:0,name=escape(m.name);
+      return `<article class="med-row" aria-labelledby="med-title-${i}">
+        <div class="med-identity"><span class="med-number">${String(i+1).padStart(2,'0')}</span><div><h3 id="med-title-${i}">${name}</h3><p>하루 ${m.dose}${m.unit} · ${m.pack}${m.unit} × ${m.box}${m.box>1?'팩':'통'}</p><span class="med-stock ${m.shortage?'stock-warning':''}">${m.shortage?`${m.shortage}${m.unit} 부족`:`종료 후 ${m.last.home+m.last.office}${m.unit}`}</span></div></div>
+        <div class="med-quantity"><label for="total-${i}">받은 수량</label><span class="input-suffix"><input id="total-${i}" data-total="${i}" aria-label="${name} 받은 수량" type="number" min="0" max="10000" step="1" value="${m.total}" required><span>${m.unit}</span></span><div class="row-caption">${Math.floor(m.total/m.dose)}일분${m.total%m.dose?` + ${m.total%m.dose}${m.unit}`:''}</div><button class="text-btn" data-total-auto="${i}" aria-label="${name} 수량을 처방 일수에 맞춤">처방 일수에 맞춤</button></div>
+        <div class="med-policy"><label for="policy-${i}">배분 방식</label><select id="policy-${i}" data-policy="${i}" aria-label="${name} 배분 방식"><option value="pack" ${m.policy==='pack'?'selected':''}>팩·통 유지</option><option value="split" ${m.policy==='split'?'selected':''}>알·봉 단위로 나누기</option></select><p class="row-caption">${m.events.length?`이동 ${m.events.length}회`:'추가 이동 없음'}</p></div>
+        <div class="row-allocation"><div class="allocation-heading"><span>처음 둘 수량 <small>${m.home===null?'자동 추천':'직접 지정'}</small></span><button class="text-btn" data-auto="${i}" aria-label="${name} 배분 자동 추천">자동 추천</button></div><div class="row-amounts"><div><label class="home-key" for="home-${i}">집</label><span class="input-suffix"><input id="home-${i}" data-home="${i}" aria-label="${name} 집에 둘 수량" type="number" min="0" max="${m.total}" step="1" value="${m.initialHome}" required><span>${m.unit}</span></span><p>${packaging(m.initialHome,m)}</p></div><div><label class="office-key" for="office-${i}">회사</label><span class="input-suffix"><input id="office-${i}" data-office="${i}" aria-label="${name} 회사에 둘 수량" type="number" min="0" max="${m.total}" step="1" value="${m.initialOffice}" required><span>${m.unit}</span></span><p>${packaging(m.initialOffice,m)}</p></div></div><div class="split-bar" aria-hidden="true"><span style="width:${percentage}%"></span><span style="width:${100-percentage}%"></span></div><div class="need-caption"><span>집 필요 ${m.needHome}${m.unit}</span><span>회사 필요 ${m.needOffice}${m.unit}</span></div></div>
+        <div class="med-actions"><button class="btn compact" data-edit="${i}" aria-label="${name} 설정">설정</button><button class="text-btn danger-text" data-remove="${i}" aria-label="${name} 삭제">삭제</button></div>
+      </article>`;
+    }).join(''):'<div class="med-empty"><h3>등록된 약이 없습니다</h3><p>위의 <b>＋ 약 추가</b>를 눌러 복용량과 포장을 입력해 주세요.</p></div>';
   }
   function renderShortages(){
     $('#shortages').innerHTML=plan.results.filter(m=>m.firstShortage).map(m=>`<div class="notice error"><b>${escape(m.name)}</b> · ${dateLabel(m.firstShortage)}부터 1일 복용분이 부족한 날이 있습니다. 처방 기간 전체에 필요한 ${state.days*m.dose}${m.unit} 중 ${m.total}${m.unit}을 입력했습니다. 받은 수량을 확인해 주세요.</div>`).join('');
@@ -98,10 +103,11 @@
   }
   function renderDay(){
     const info=C.dayInfo(selected,state.holidays),index=plan.days.findIndex(d=>d.date===selected);
-    $('#allocation-open').disabled=index<0;
+    $('#allocation-open').disabled=index<0||!state.meds.length;
     $('#allocation-status').hidden=!state.allocation;
     if(state.allocation)$('#allocation-note').textContent=`${fullDate(state.allocation.date)} 복용 전 재배분 기준 적용 중`;
     if(index<0){$('#day-detail').innerHTML=`<h3>${dateLabel(selected)} (${weekday(selected)})</h3><p class="muted small">현재 처방 계획에 포함되지 않은 날입니다.</p>`;return}
+    if(!state.meds.length){$('#day-detail').innerHTML='<p class="muted small">약을 추가하면 선택한 날짜의 집·회사 잔량을 확인할 수 있습니다.</p>';return}
     const timing={opening:'하루 시작 · 직접 재배분 후, 자동 이동과 복용 전',beforeDose:'복용 직전 · 복용 전 이동 완료, 아직 먹지 않은 수량',closing:'하루 종료 · 당일 복용과 모든 이동을 마친 수량'}[balanceMoment];
     const remaining=plan.days.slice(index),homeDays=remaining.filter(d=>d.location==='home').length;
     $('#day-detail').innerHTML=`<h3>${dateLabel(selected)} (${weekday(selected)}) · ${escape(info.reason)}</h3><p class="detail-caption">${timing}</p><div class="balance-cards">${plan.results.map(m=>{
@@ -113,7 +119,7 @@
   function renderEvents(){
     const groups=new Map();plan.events.forEach(e=>{const key=e.date+e.phase;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(e)});
     $('#event-count').textContent=new Set(plan.events.map(e=>e.date)).size+'일';
-    $('#events').innerHTML=groups.size?[...groups.values()].map(events=>{
+    $('#events').innerHTML=!state.meds.length?'<div class="empty-events"><h3>약을 추가해 주세요</h3><p>배분에 따라 챙겨야 할 날짜를 계산합니다.</p></div>':groups.size?[...groups.values()].map(events=>{
       const first=events[0];return `<div class="event-group"><div class="event-title"><b>${dateLabel(first.date)} (${weekday(first.date)})</b><span class="phase">${phase(first.phase)}</span></div>${events.map(e=>`<div class="event-item"><div><b>${escape(e.name)} · ${e.quantity}${e.unit}</b><span class="direction">${loc(e.from)} → ${loc(e.to)}</span></div><p>${movePackaging(e,plan.results[e.med])}</p></div>`).join('')}</div>`;
     }).join(''):`<div class="empty-events"><span class="check">✓</span><h3>추가로 옮길 약이 없어요</h3><p>${plan.results.some(m=>m.shortage)?'단, 받은 수량이 부족합니다. 수량을 먼저 확인해 주세요.':'처음 배분한 수량을 각 장소에 준비하면 됩니다.'}</p></div>`;
   }
@@ -150,20 +156,46 @@
     if(el.dataset.home!==undefined)mutation(()=>state.meds[+el.dataset.home].home=Number(el.value));
     if(el.dataset.office!==undefined)mutation(()=>{const m=state.meds[+el.dataset.office];m.home=m.total-Number(el.value)});
   });
+  function openMed(index=null){
+    editingMed=index;
+    const m=index===null?{name:'',dose:1,unit:'알',pack:10,box:1}:state.meds[index];
+    for(const key of ['name','dose','unit','pack','box'])$('#med-'+key).value=m[key];
+    $('#med-dialog-title').textContent=index===null?'새 약 추가':'약과 포장 설정';
+    $('#med-submit').textContent=index===null?'약 추가':'설정 적용';
+    $('#med-error').textContent='';$('#med-dialog').showModal();$('#med-name').focus();
+  }
+  $('#med-add').addEventListener('click',()=>openMed());
   $('#meds').addEventListener('click',e=>{
     const el=e.target.closest('button');if(!el)return;
     if(el.dataset.auto!==undefined)mutation(()=>state.meds[+el.dataset.auto].home=null);
     if(el.dataset.totalAuto!==undefined)mutation(()=>{const m=state.meds[+el.dataset.totalAuto];m.autoTotal=true;m.total=state.days*m.dose;m.home=null});
-    if(el.dataset.edit!==undefined){
-      editingMed=+el.dataset.edit;const m=state.meds[editingMed];
-      for(const key of ['name','dose','unit','pack','box'])$('#med-'+key).value=m[key];
-      $('#med-error').textContent='';$('#med-dialog').showModal();
+    if(el.dataset.edit!==undefined)openMed(+el.dataset.edit);
+    if(el.dataset.remove!==undefined){
+      removingMed=+el.dataset.remove;
+      $('#remove-description').textContent='“'+state.meds[removingMed].name+'”을(를) 목록에서 삭제할까요?';
+      $('#remove-dialog').showModal();
     }
   });
+  $('#med-remove-confirm').addEventListener('click',()=>{
+    if(removingMed===null||!state.meds[removingMed])return;
+    const i=removingMed;$('#remove-dialog').close();removingMed=null;
+    if(mutation(()=>state.meds.splice(i,1)))($('#meds').querySelector('[data-edit="'+Math.min(i,state.meds.length-1)+'"]')||$('#med-add')).focus();
+  });
   $('#med-form').addEventListener('submit',e=>{
-    e.preventDefault();const prev=structuredClone(state),m=state.meds[editingMed];
-    m.name=$('#med-name').value.trim();m.dose=Number($('#med-dose').value);m.unit=$('#med-unit').value;m.pack=Number($('#med-pack').value);m.box=Number($('#med-box').value);m.home=null;state.allocation=null;if(m.autoTotal)m.total=state.days*m.dose;
-    try{C.validate(state);compute();$('#med-dialog').close();$('#sample-label').textContent='내 배분 계획'}catch(err){state=prev;$('#med-error').textContent=err.message}
+    e.preventDefault();if(!$('#med-form').reportValidity())return;
+    const candidate=structuredClone(state),adding=editingMed===null;
+    const m=adding?{autoTotal:true,policy:'pack',home:null}:candidate.meds[editingMed];
+    m.name=$('#med-name').value.trim();m.dose=Number($('#med-dose').value);m.unit=$('#med-unit').value;m.pack=Number($('#med-pack').value);m.box=Number($('#med-box').value);m.home=null;
+    if(m.autoTotal)m.total=candidate.days*m.dose;
+    if(adding)candidate.meds.push(m);
+    candidate.allocation=null;
+    try{
+      C.plan(candidate);
+      const index=adding?candidate.meds.length-1:editingMed;
+      if(mutation(()=>state=candidate)){
+        $('#med-dialog').close();$('#meds').querySelector('[data-edit="'+index+'"]').focus();
+      }
+    }catch(err){$('#med-error').textContent=err.message}
   });
   $('#holiday-open').addEventListener('click',()=>{if(dirty&&!applyPrescription())return;renderHolidays();$('#holiday-start').value=state.visit;$('#holiday-end').value=state.visit;$('#holiday-error').textContent='';$('#holiday-dialog').showModal()});
   $('#holiday-start').addEventListener('change',()=>{if($('#holiday-end').value<$('#holiday-start').value)$('#holiday-end').value=$('#holiday-start').value});

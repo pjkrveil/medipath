@@ -15,3 +15,49 @@
 @media(max-width:1150px){.nav-inner{gap:16px}.topbar nav{gap:16px}.account-email{max-width:130px}}
 @media(max-width:900px){.nav-inner{flex-wrap:wrap;padding-top:10px;padding-bottom:10px}.topbar nav{order:5;width:100%;margin:0;min-height:34px;justify-content:center}.brand{margin-right:auto}.balance-toolbar{flex-wrap:wrap}.balance-toolbar label{min-width:200px}}
 @media(max-width:560px){.balance-pair{gap:6px}.balance-pair>div{padding:10px;flex-wrap:wrap}.balance-pair strong{font-size:24px}.balance-toolbar>button{width:100%}.account-email{max-width:140px}.sync-banner{margin:12px}.nav-inner{gap:10px}.topbar>.nav-inner>.icon-btn{margin-left:0}.allocation-status{flex-wrap:wrap}}
+
+/* Medication rows: identity, supply, packaging, allocation, actions. */
+.med-tools{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.med-list{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+.med-row{display:grid;grid-template-columns:minmax(170px,1.2fr) minmax(110px,.7fr) minmax(155px,1fr) minmax(290px,1.8fr) 64px;align-items:center;gap:22px;padding:20px 24px}
+.med-row+.med-row{border-top:1px solid var(--border)}.med-row:hover{background:var(--soft)}.med-row>div{min-width:0}
+.med-identity{display:flex;align-items:flex-start;gap:12px}
+.med-number{font-size:12px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--blue);background:var(--blue-soft);border-radius:7px;padding:5px 8px;flex-shrink:0;margin-top:2px}
+.med-identity h3{font-size:16px;overflow-wrap:anywhere;line-height:1.5}.med-identity p,.row-caption{font-size:12px;color:var(--muted);margin-top:5px}
+.med-stock{display:inline-block;font-size:12px;color:var(--muted);margin-top:8px}.stock-warning,.danger-text{color:#b83745}
+.med-row label{font-size:12px;color:var(--muted);font-weight:600}
+.med-row input:not([type=checkbox]),.med-row select{height:38px;font-size:14px;padding:6px 9px;margin-top:6px}
+.med-row .input-suffix>span{font-size:12px;top:8px;right:10px}.med-row input{text-align:right;font-variant-numeric:tabular-nums}
+.med-quantity>.text-btn{font-size:12px;padding:0;text-align:left;white-space:normal}.med-policy .row-caption{margin-top:10px;color:var(--blue)}
+.row-allocation{padding-left:22px;border-left:1px solid var(--border)}
+.allocation-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;font-size:12px}
+.allocation-heading small{font-size:11px;color:var(--muted);margin-left:6px}.allocation-heading .text-btn{font-size:12px;padding:0}
+.row-amounts{display:grid;grid-template-columns:1fr 1fr;gap:18px}.row-amounts>div{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:8px}
+.row-amounts input:not([type=checkbox]){margin-top:0;font-size:18px;font-weight:700}
+.row-amounts>div:first-child input{color:var(--home);background:var(--home-soft)}.row-amounts>div:last-child input{color:var(--office);background:var(--office-soft)}
+.row-amounts p{grid-column:1 / -1;font-size:11px;color:var(--muted);margin-top:4px;text-align:right;overflow-wrap:anywhere}
+.row-allocation .split-bar{margin:9px 0 5px;height:4px}.row-allocation .need-caption{font-size:11px}
+.med-actions{display:flex;flex-direction:column;gap:10px}.med-actions button{min-height:36px}
+.med-empty{padding:42px 20px;text-align:center}.med-empty h3{font-size:17px}.med-empty p{font-size:14px;color:var(--muted);margin-top:8px}
+.btn.danger{background:#b83745;border-color:#b83745;color:white}.dialog-bottom .btn+.btn{margin-left:8px}#remove-description{overflow-wrap:anywhere;margin-bottom:12px}
+[data-theme=dark] .danger-text,[data-theme=dark] .stock-warning{color:#ff9ca6}
+/* Compact date balances stay scannable as medication count grows. */
+.balance-cards{gap:0;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.balance-card{border:0;border-radius:0;padding:12px;display:grid;grid-template-columns:minmax(100px,.9fr) minmax(0,1.4fr);gap:6px 12px;align-items:center}
+.balance-card+.balance-card{border-top:1px solid var(--border)}.balance-card h4{margin:0;font-size:14px;overflow-wrap:anywhere}.balance-card h4 small{display:block;margin:3px 0 0}
+.balance-pair{gap:8px}.balance-pair>div{padding:8px;gap:4px;flex-wrap:wrap}.balance-pair span{font-size:11px}.balance-pair strong{font-size:20px}.balance-card>p{grid-column:1 / -1;margin:0;font-size:11px}
+@media(max-width:1150px){
+ .med-row{grid-template-columns:minmax(160px,1.3fr) minmax(100px,.8fr) minmax(150px,1fr) 64px;gap:12px 20px}
+ .med-identity{grid-column:1}.med-quantity{grid-column:2}.med-policy{grid-column:3}.med-actions{grid-column:4;grid-row:1}
+ .row-allocation{grid-column:1 / -1;grid-row:2;display:grid;grid-template-columns:120px minmax(180px,1fr) 160px;align-items:center;column-gap:20px;padding:12px 0 0;border-left:0;border-top:1px solid var(--border)}
+ .allocation-heading{display:block;margin:0}.allocation-heading>span{display:block}.allocation-heading .text-btn{margin-top:4px}.row-allocation .split-bar{grid-column:3;grid-row:1;margin:0 0 25px}.row-allocation .need-caption{grid-column:3;grid-row:1;margin-top:20px}.row-amounts{grid-column:2;grid-row:1}
+}
+@media(max-width:700px){
+ .medications>.section-top{flex-wrap:wrap}.med-tools{width:100%;justify-content:space-between}
+ .med-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:18px}
+ .med-identity{grid-column:1 / -1;grid-row:1;padding-right:105px;min-height:54px}.med-actions{grid-column:2;grid-row:1;align-self:start;justify-self:end;flex-direction:row;gap:8px}
+ .med-quantity{grid-column:1;grid-row:2}.med-policy{grid-column:2;grid-row:2;align-self:start}
+ .row-allocation{grid-column:1 / -1;grid-row:3;display:block;padding-top:12px}.allocation-heading{display:flex;margin-bottom:10px}.allocation-heading .text-btn{margin:0}
+ .row-allocation .split-bar{margin:10px 0 5px}.row-allocation .need-caption{margin:0}.row-amounts{gap:14px}.med-stock{margin-top:4px}.med-number{padding:4px 6px}
+}
+@media(max-width:380px){.med-row{padding:14px}.med-identity{gap:8px}.row-amounts{gap:8px}.row-amounts>div{column-gap:4px}.home-key:before,.office-key:before{margin-right:4px}.allocation-heading small{display:none}.balance-card{grid-template-columns:1fr}.balance-card h4 small{display:inline;margin-left:6px}}

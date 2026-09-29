@@ -103,3 +103,24 @@ test('opened package remains intact during reallocation',()=>{
   assert.equal(C.recommendHome([10,10,4],12,'pack'),14);
   assert.equal(C.recommendHome([10,10,4],12,'split'),12);
 });
+test('variable medication lists conserve inventory and map reallocation to every item',()=>{
+  for(const count of [0,1,4,12,100]){
+    const s=state({days:7});s.meds=Array.from({length:count},(_,i)=>({...s.meds[i%3],name:'약 '+i,total:7*s.meds[i%3].dose,policy:'split'}));
+    const before=C.plan(s);assert.equal(before.results.length,count);
+    s.allocation={date:'2026-09-25',home:s.meds.map(m=>2*m.dose)};
+    const after=C.plan(s);
+    after.results.forEach((m,i)=>{
+      assert.deepEqual(m.rows.slice(0,2),before.results[i].rows.slice(0,2));
+      assert.equal(m.rows[2].opening.home,2*m.dose);
+      let consumed=0;for(const r of m.rows){consumed+=r.consumed;assert.equal(r.home+r.office+consumed,m.total)}
+      m.events.forEach(e=>{assert.equal(e.med,i);assert.equal(e.name,s.meds[i].name)});
+    });
+    if(count){s.allocation.home.pop();assert.throws(()=>C.plan(s),/再|재배분/)}
+  }
+});
+test('removing a middle medication keeps remaining results and rejects oversized lists',()=>{
+  const s=state();s.meds.push({...s.meds[0],name:'추가 약'});const before=C.plan(s);
+  s.meds.splice(1,1);const after=C.plan(s);
+  for(const [i,old] of [[0,0],[1,2],[2,3]])assert.deepEqual(after.results[i].rows,before.results[old].rows);
+  s.meds=Array.from({length:101},()=>({...s.meds[0]}));assert.throws(()=>C.plan(s),/100/);
+});

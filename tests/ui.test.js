@@ -69,3 +69,47 @@ test('UI: first email login stores the current plan, without a fake local-only s
     assert.equal(sdk.calls.filter(c=>c[0]==='save').length,1);assert.equal(sdk.settings.plan.meds[0].name,'게스트 약');assert.equal(b.$('#save-status').textContent,'계정에 저장됨');
   }finally{b.dom.window.close()}
 });
+function addMed(b,name='새 약',dose=1){
+  b.$('#med-add').click();b.$('#med-name').value=name;b.$('#med-dose').value=String(dose);b.submit('#med-form');
+}
+test('UI: add, edit, reallocate, cancel removal, remove middle and persist variable list',()=>{
+  const b=boot();try{
+    addMed(b,'네 번째 약',2);
+    assert.equal(b.w.document.querySelectorAll('.med-row').length,4);
+    assert.equal(b.$('#total-3').value,'180');assert.equal(b.$('#med-dialog').open,false);
+    b.change('#policy-3','split');b.change('#home-3','10');assert.equal(b.$('#office-3').value,'170');
+    b.$('[data-edit="3"]').click();b.$('#med-name').value='변경한 약';b.submit('#med-form');
+    b.$('[data-day="2026-09-28"]').click();b.$('#allocation-open').click();
+    assert.equal(b.w.document.querySelectorAll('[data-rehome]').length,4);
+    b.submit('#allocation-form');assert.equal(b.$('#allocation-dialog').open,false);
+    b.$('[data-remove="1"]').click();b.$('[data-close="remove-dialog"]').click();assert.equal(b.w.document.querySelectorAll('.med-row').length,4);
+    b.$('[data-remove="1"]').click();b.$('#med-remove-confirm').click();
+    assert.equal(b.$('#allocation-status').hidden,true);
+    const saved=JSON.parse(b.w.localStorage.getItem('medipath.plan.v1'));
+    assert.deepEqual(saved.plan.meds.map(m=>m.name),['게스트 약','C','변경한 약']);
+    assert.equal(b.w.document.querySelectorAll('.balance-card').length,3);
+    assert.equal(b.$('#med-title-2').textContent,'변경한 약');
+  }finally{b.dom.window.close()}
+});
+test('UI: deleting every medication leaves a usable empty plan and supports adding again',()=>{
+  const b=boot();try{
+    while(b.$('[data-remove="0"]')){b.$('[data-remove="0"]').click();b.$('#med-remove-confirm').click()}
+    assert.equal(JSON.parse(b.w.localStorage.getItem('medipath.plan.v1')).plan.meds.length,0);
+    assert.match(b.$('#meds').textContent,/등록된 약이 없습니다/);
+    assert.equal(b.$('#allocation-open').disabled,true);assert.equal(b.$('#export').disabled,true);assert.equal(b.$('#error').hidden,true);
+    b.$('#med-add').click();b.$('#med-name').value='   ';b.submit('#med-form');assert.equal(b.$('#med-dialog').open,true);assert.match(b.$('#med-error').textContent,/약 이름/);
+    b.$('#med-name').value='다시 시작';b.submit('#med-form');assert.equal(b.$('#med-dialog').open,false);
+    assert.equal(b.w.document.querySelectorAll('.med-row').length,1);assert.equal(b.$('#allocation-open').disabled,false);assert.equal(b.$('#export').disabled,false);
+  }finally{b.dom.window.close()}
+});
+test('UI: account restores and saves more than three medications without changing guest data',async()=>{
+  const cloud=payload('계정 약');cloud.plan.meds.push({...cloud.plan.meds[0],name:'계정 네 번째 약'});
+  const sdk=mockSdk(cloud),b=boot(sdk);try{
+    await sleep(30);b.$('#account-open').click();b.$('#login-email').value='a@example.com';b.$('#send-code').click();await sleep(10);b.$('#login-code').value='123456';b.submit('#account-form');await sleep(70);
+    assert.equal(b.w.document.querySelectorAll('.med-row').length,4);
+    addMed(b,'계정 다섯 번째 약');await sleep(30);assert.equal(sdk.settings.plan.meds.length,5);
+    b.$('[data-remove="1"]').click();b.$('#med-remove-confirm').click();await sleep(30);assert.equal(sdk.settings.plan.meds.length,4);assert.equal(sdk.settings.plan.meds[1].name,'C');
+    assert.equal(JSON.parse(b.w.localStorage.getItem('medipath.plan.v1')).plan.meds.length,3);
+    b.$('#med-add').click();b.$('#account-logout').click();await sleep(30);assert.equal(b.$('#med-dialog').open,false);assert.equal(b.w.document.querySelectorAll('.med-row').length,3);
+  }finally{b.dom.window.close()}
+});

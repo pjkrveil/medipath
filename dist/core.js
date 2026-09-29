@@ -18,7 +18,7 @@
     if(!integer(state.days,1,365))throw Error('처방 기간은 1~365일의 정수로 입력해 주세요.');
     if(!Array.isArray(state.holidays)||state.holidays.length>200)throw Error('추가 휴일은 최대 200개입니다.');
     for(const h of state.holidays)if(!valid(h.start)||!valid(h.end)||h.start>h.end||typeof h.name!=='string'||h.name.length>60)throw Error('추가 휴일의 이름과 날짜 범위를 확인해 주세요.');
-    if(!Array.isArray(state.meds)||state.meds.length!==3)throw Error('세 가지 약의 정보를 확인해 주세요.');
+    if(!Array.isArray(state.meds)||state.meds.length>100)throw Error('약은 최대 100개까지 등록할 수 있습니다.');
     for(const m of state.meds){
       if(typeof m.name!=='string'||!m.name.trim()||m.name.length>40)throw Error('약 이름은 1~40자로 입력해 주세요.');
       if(!integer(m.dose,1,20)||!integer(m.pack,1,1000)||!integer(m.box,1,100))throw Error(m.name+': 복용량과 포장 수량은 양의 정수로 입력해 주세요.');
@@ -32,7 +32,7 @@
     if(start<H.min||end>H.max)throw Error('공휴일 데이터는 2026~2027년을 지원합니다. 계획 전체 기간을 이 범위 안으로 설정해 주세요.');
     if(state.allocation){
       const a=state.allocation;
-      if(!valid(a.date)||a.date<start||a.date>end||!Array.isArray(a.home)||a.home.length!==3||!a.home.every(n=>integer(n,0,10000)))throw Error('날짜별 재배분 정보를 확인해 주세요.');
+      if(!valid(a.date)||a.date<start||a.date>end||!Array.isArray(a.home)||a.home.length!==state.meds.length||!a.home.every(n=>integer(n,0,10000)))throw Error('날짜별 재배분 정보를 확인해 주세요.');
     }
     return {start,end};
   }
