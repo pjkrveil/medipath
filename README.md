@@ -1,99 +1,37 @@
 # MediPath
 
-집과 회사에서 나누어 복용하는 약의 **배분 수량, 날짜별 잔량, 이동 일정**을 관리하는 웹앱입니다.
+Plan where to keep your medication and when to move it between home and work.
 
-## 주요 기능
+**[Open MediPath](https://pjkrveil.github.io/medipath/)**
 
-### 이메일 인증과 개인 설정 저장
+## Purpose
 
-- 이메일로 받은 숫자 인증 코드로 로그인합니다.
-- 처음 로그인하면 현재 계획을 계정에 저장합니다. 이미 저장된 설정이 있으면 해당 설정을 불러옵니다.
-- 처방일, 복용 기간, 약 이름과 포장, 복용량, 추가 휴일, 집·회사 배분, 날짜별 재배분, 선택 날짜와 잔량 표시 기준, 화면 테마를 저장합니다.
-- 다른 기기에서도 같은 이메일 계정으로 설정을 이어서 사용할 수 있습니다.
-- 저장 중·저장 완료·저장 실패 상태를 표시합니다. 다른 기기와 변경 사항이 충돌하면 자동 덮어쓰기를 중단합니다.
-- 로그아웃하면 계정의 계획을 화면에서 지우고 이전 게스트 계획으로 돌아갑니다.
-- 로그인하지 않고 계산할 수도 있습니다. 게스트의 ‘이 기기에 계획 저장’은 현재 브라우저에만 저장됩니다.
+MediPath helps you prepare medication for your daily routine: take it at home on weekends, South Korean public holidays, and your own days off, and at work on other weekdays. It calculates how much to keep at each location, the expected stock on each date, and when to bring more with you.
 
-### 처방 정보와 복용 시작일
+## What You Can Do
 
-병원 방문일과 처방 기간을 입력합니다.
+- Add, edit, or remove medications, with individual daily doses and packaging sizes.
+- Manage received quantities and home/work allocations in a compact list.
+- Split medication into individual units or keep packs and containers together, including opened packages.
+- Add personal holidays, leave, and work-from-home days.
+- View expected home and work stock at the start of a day, just before a dose, or at the end of a day.
+- Reallocate remaining stock from a selected date and recalculate future transfers.
+- Check shortages and export allocations and transfer schedules as CSV.
+- Sign in with an email verification code to save your settings across devices, or use optional storage in your current browser as a guest.
 
-| 방문일 복용 여부 | 새 처방 시작일 |
-|---|---|
-| 먹고 방문 | 방문일 다음 날 |
-| 다녀와서 복용 | 방문일 당일 |
+## How to Use
 
-받은 수량을 일수 기준으로 자동 계산하거나 실제 받은 알·봉 수로 직접 입력할 수 있습니다.
+1. **Enter your prescription.** Set the hospital visit date and prescription duration. Choose whether you took that day's dose before the visit or will take it afterward. Taking it before the visit starts the new prescription on the following day.
+2. **Set up your medications.** Add the medications you need and remove unused examples. Enter each medication's name, daily dose, unit, and packaging size. Check the received quantity; new medications initially use prescription days multiplied by daily dose.
+3. **Allocate your supply.** Choose whether to split individual units or preserve packaging. Use the suggested allocation or enter the quantity to keep at home or work. The other location updates automatically.
+4. **Add your days off.** Register personal holidays and work-from-home days so those doses are assigned to home.
+5. **Check the calendar.** Select a date and stock timing to see how much should remain at each location. Follow the transfer schedule to prepare for workdays and consecutive days at home.
+6. **Reallocate when needed.** Select a date and enter how much of the remaining supply to keep at each location before that day's dose. Earlier dates stay unchanged.
+7. **Save your plan.** Sign in to save settings to your account, or enable local storage for this browser.
 
-### 집·회사 자동 분류
+## Planning Notes
 
-- 토요일, 일요일, 대한민국 공휴일, 직접 추가한 휴일 → **집에서 복용**
-- 나머지 업무일 → **회사에서 복용**
-- 연차·회사 휴무·재택일은 하루 또는 기간으로 추가합니다. 겹친 휴일은 중복 계산하지 않습니다.
-- 내장 공휴일 데이터는 **2026~2027년**을 지원합니다. 이후 지정되는 임시공휴일은 직접 추가할 수 있습니다. 지원 연도 밖의 계획은 계산을 중단합니다.
-
-### 약 추가·삭제와 포장별 배분
-
-| 기본 약 | 하루 복용량 | 포장 형태 |
-|---|---:|---|
-| 약 A | 1알 | 10알 알루미늄 팩 × 3팩 |
-| 약 B | 1봉(팩) | 90봉 들어 있는 통 × 1통 |
-| 약 C | 2알 | 30알 들어 있는 통 × 1통 |
-
-A·B·C는 시작할 때 제공하는 예시입니다. **약 추가**로 필요한 약을 등록하고 각 줄의 **삭제**로 제거할 수 있습니다. 최대 100개를 등록할 수 있으며, 모두 삭제한 빈 목록도 저장됩니다. 기존 계정의 약 목록은 그대로 불러옵니다.
-
-약은 가로형 리스트로 표시합니다. 각 줄에서 이름·복용량·포장, 받은 수량, 배분 방식, 집·회사에 처음 둘 수량과 필요량을 확인합니다. 집과 회사 수량을 직접 입력하거나 자동 추천으로 조정할 수 있습니다. 모바일에서는 같은 줄의 항목을 세로로 재배치합니다.
-
-각 약의 이름, 하루 복용량, 알·봉 단위와 포장 수량을 바꿀 수 있습니다. 새 약의 받은 수량은 처방 일수 × 하루 복용량으로 채우며 실제 받은 수량으로 수정할 수 있습니다.
-
-- **알·봉 단위로 나누기**: 각 장소의 필요량에 맞춰 수량을 나눕니다.
-- **팩·통 유지**: 개봉한 포장의 남은 내용물까지 팩·통 단위로 유지합니다.
-- 집 또는 회사의 수량을 직접 바꾸면 반대편 수량은 총량에서 자동 계산합니다.
-- 자동 추천으로 되돌리거나 두 배분 방식을 비교할 수 있습니다.
-
-### 선택일 기준 잔량 캘린더
-
-날짜를 선택하면 약마다 **집에 남은 수량과 회사에 남은 수량**을 각각 표시합니다.
-
-| 잔량 기준 | 표시하는 시점 |
-|---|---|
-| 하루 시작 | 직접 재배분 이후, 자동 이동과 복용 이전 |
-| 복용 직전 | 복용 전 이동을 반영하고 아직 약을 먹기 전 |
-| 하루 종료 | 당일 복용과 모든 이동을 마친 뒤 |
-
-같은 화면에서 남은 기간에 각 장소에서 필요한 수량과 선택일의 이동 내역을 확인할 수 있습니다. 잔량은 계획대로 복용·이동했을 때의 예상값이며 실제 복용 여부를 자동 감지하지 않습니다.
-
-### 선택일부터 남은 약 재배분
-
-1. 캘린더에서 날짜를 선택합니다.
-2. **선택일부터 재배분**을 누릅니다.
-3. 각 약을 집과 회사에 둘 수량으로 나눕니다. **남은 필요량에 맞춰 추천**도 사용할 수 있습니다.
-4. 적용하면 선택일 이전 계산은 유지하고, 선택일부터 잔량과 이동 일정을 다시 계산합니다.
-
-재배분은 총 잔량을 늘리거나 줄이지 않습니다. 포장 유지 모드에서는 이미 개봉한 팩·통을 임의로 쪼갤 수 없습니다. 해당 날짜 복용 전에 직접 배분을 완료해야 하며, 휴일이면 미리 옮겨 두어야 합니다.
-
-재배분 기준은 한 개를 유지합니다. 새 기준을 적용하면 이전 기준을 대체하고, 처방·약·휴일을 바꾸면 기존 재배분 기준을 초기화합니다.
-
-### 이동 일정과 부족량
-
-- 출근 시 회사에 가져갈 약과 연속 휴일 전 퇴근 시 집에 가져갈 약을 표시합니다.
-- 이동할 날짜, 약 이름, 수량, 출발지·도착지, 남은 팩·통 수량을 확인합니다.
-- 처방 기간이 휴일로 시작하면 필요한 사전 준비를 표시합니다.
-- 받은 총량과 1일 복용분이 부족한 날을 표시합니다. 부족한 날에 일부만 먹은 것으로 계산하지 않습니다.
-- 초기 배분·재배분·이동·부족량을 CSV로 내려받을 수 있습니다.
-
-### 화면과 저장
-
-모바일과 데스크톱 화면, 밝은 테마와 어두운 테마를 지원합니다. 화면 아래에서 저장 상태를 확인할 수 있습니다. 이메일 인증이 활성화되지 않은 배포에서는 게스트 기능을 사용할 수 있습니다.
-
-## 사용 순서
-
-1. 병원 방문일, 처방 기간, 방문일 복용 여부를 입력하고 **계획 계산**을 누릅니다.
-2. 필요한 약을 추가하고 예시 약을 삭제한 뒤 실제 받은 수량과 복용량을 확인합니다.
-3. 포장 방식과 집·회사 배분을 선택합니다.
-4. 추가 휴일을 입력합니다.
-5. 캘린더 날짜를 선택해 잔량과 필요한 이동을 확인합니다.
-6. 필요하면 선택일부터 남은 약을 다시 배분합니다.
-7. 이메일로 로그인해 계정에 저장하거나 게스트의 기기 저장을 사용합니다.
-
-복용량과 포장 보관 방식은 실제 처방에 맞게 입력하세요. 기존 잔약은 별도로 관리하지 않으므로 포함하려면 받은 수량에 합산합니다.
+- Stock figures assume that you follow the planned doses and transfers; they do not record actual doses taken.
+- Enter quantities and packaging rules that match your prescription. Include any existing stock in the received quantity if you want it counted.
+- One date-based reallocation is retained at a time. Changing the prescription, medication list, medication settings, or holidays clears it.
+- Built-in South Korean public holiday data covers 2026–2027. Add newly announced temporary holidays yourself.
